@@ -55,10 +55,9 @@ Future<LaunchResult> launchApp(
     onProgress('launch: preparing session');
 
     initLaunchSession(project: project, sessionDir: input.sessionDir);
-    ensureSessionDir();
+    // Creates (or re-secures) the .fdb/ session directory before any cleanup.
     await replacePreviousSession(stopApp: true, onProgress: onProgress);
 
-    // Create .fdb/ session directory and persist device ID.
     ensureGitignored(project);
     File(deviceFile).writeAsStringSync(device);
     writeProjectPath(project);

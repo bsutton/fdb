@@ -31,7 +31,7 @@ Future<AttachResult> attachApp(
     onProgress('attach: preparing session');
 
     initLaunchSession(project: project, sessionDir: input.sessionDir);
-    ensureSessionDir();
+    // Creates (or re-secures) the .fdb/ session directory before any cleanup.
     await replacePreviousSession(progressPrefix: 'attach', onProgress: onProgress);
 
     ensureGitignored(project);
