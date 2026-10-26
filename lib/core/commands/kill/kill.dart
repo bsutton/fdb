@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:fdb/constants.dart';
-import 'package:fdb/src/controller/fdb_controller.dart';
+import 'package:fdb/src/controller/fdb_controller.dart' hide ensureSessionDir, sessionDirPath;
 import 'package:fdb/core/commands/kill/kill_models.dart';
 import 'package:fdb/core/process_utils.dart';
 export 'package:fdb/core/commands/kill/kill_models.dart';
@@ -14,6 +14,14 @@ export 'package:fdb/core/commands/kill/kill_models.dart';
 /// [sendSignal] defaults to [Process.killPid]; tests pass a fake so they never
 /// send real signals.
 Future<KillResult> killApp(KillInput _, {ProcessSignaller sendSignal = Process.killPid}) async {
+  final sessionType = FileSystemEntity.typeSync(sessionDirPath, followLinks: false);
+  if (sessionType != FileSystemEntityType.notFound) {
+    try {
+      ensureSessionDir();
+    } on FileSystemException {
+      return const KillFailed();
+    }
+  }
   if (!hasMeaningfulSessionFiles()) {
     return const KillNoSession();
   }

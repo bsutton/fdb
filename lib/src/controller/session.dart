@@ -1,6 +1,9 @@
+import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:fdb/src/controller/pid_liveness.dart';
+import 'package:path/path.dart' as path;
 
 /// Name of the session directory created inside the Flutter project.
 const sessionDirName = '.fdb';
@@ -10,13 +13,13 @@ String _sessionDir = '${Directory.current.path}/$sessionDirName';
 
 /// Override the session directory from a Flutter project path.
 void initSessionDir(String projectPath) {
-  final absolute = Directory(projectPath).absolute.path;
-  _sessionDir = '$absolute/$sessionDirName';
+  final absolute = path.normalize(Directory(projectPath).absolute.path);
+  _sessionDir = path.join(absolute, sessionDirName);
 }
 
 /// Override the session directory from an explicit `--session-dir` flag.
 void initSessionDirFromPath(String sessionDirPath) {
-  _sessionDir = Directory(sessionDirPath).absolute.path;
+  _sessionDir = path.normalize(Directory(sessionDirPath).absolute.path);
 }
 
 /// Auto-locate the session directory by walking up from [start].
@@ -28,7 +31,11 @@ String? resolveSessionDir({Directory? start}) {
 
   while (true) {
     final candidate = Directory('${current.path}/$sessionDirName');
-    if (candidate.existsSync()) {
+    final candidateType = FileSystemEntity.typeSync(candidate.path, followLinks: false);
+    if (candidateType == FileSystemEntityType.link) {
+      throw FileSystemException('Refusing a symlinked fdb session directory', candidate.path);
+    }
+    if (candidateType == FileSystemEntityType.directory) {
       final alive = _hasLiveSessionState(candidate.path);
 
       if (alive) {
@@ -37,6 +44,7 @@ String? resolveSessionDir({Directory? start}) {
           stderr.writeln('INFO: Using session dir from ${current.path}');
         }
         _sessionDir = resolved;
+        ensureSessionDir();
         return resolved;
       }
     }
@@ -83,8 +91,54 @@ bool _isPidFileAlive(String path) {
 /// Ensure the session directory exists and return its path.
 String ensureSessionDir() {
   final dir = Directory(_sessionDir);
+  if (FileSystemEntity.typeSync(_sessionDir, followLinks: false) == FileSystemEntityType.link) {
+    throw FileSystemException('Refusing a symlinked fdb session directory', _sessionDir);
+  }
   if (!dir.existsSync()) dir.createSync(recursive: true);
+  if (FileSystemEntity.typeSync(_sessionDir, followLinks: false) != FileSystemEntityType.directory) {
+    throw FileSystemException('fdb session path is not a directory', _sessionDir);
+  }
+  if (!Platform.isWindows) _setPrivateMode(_sessionDir, 0x1c0); // 0700
   return _sessionDir;
+}
+
+/// Replace the controller credential only after the session directory is
+/// private. Reject links, which could redirect a token write or disclose it.
+void writeControllerToken(String token) {
+  ensureSessionDir();
+  final file = File(controllerTokenFile);
+  final type = FileSystemEntity.typeSync(file.path, followLinks: false);
+  if (type != FileSystemEntityType.notFound && type != FileSystemEntityType.file) {
+    throw FileSystemException('Refusing a non-file controller token path', file.path);
+  }
+  if (type == FileSystemEntityType.file) file.deleteSync();
+  try {
+    file.writeAsStringSync(token);
+    if (!Platform.isWindows) _setPrivateMode(file.path, 0x180); // 0600
+  } catch (_) {
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) == FileSystemEntityType.file) {
+      file.deleteSync();
+    }
+    rethrow;
+  }
+}
+
+final int Function(Pointer<Utf8>, int) _chmodLinux = DynamicLibrary.process()
+    .lookupFunction<Int32 Function(Pointer<Utf8>, Uint32), int Function(Pointer<Utf8>, int)>('chmod');
+
+final int Function(Pointer<Utf8>, int) _chmodMac = DynamicLibrary.process()
+    .lookupFunction<Int32 Function(Pointer<Utf8>, Uint16), int Function(Pointer<Utf8>, int)>('chmod');
+
+void _setPrivateMode(String path, int mode) {
+  final nativePath = path.toNativeUtf8();
+  try {
+    final chmod = Platform.isMacOS ? _chmodMac : _chmodLinux;
+    if (chmod(nativePath, mode) != 0) {
+      throw FileSystemException('Unable to secure fdb session state', path);
+    }
+  } finally {
+    malloc.free(nativePath);
+  }
 }
 
 String get sessionDirPath => _sessionDir;

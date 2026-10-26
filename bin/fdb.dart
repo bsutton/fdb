@@ -184,8 +184,22 @@ Future<void> main(List<String> args) async {
   if (!sessionResolutionExempt.contains(command) && !wantsHelp && !isMemDiff) {
     if (explicitSessionDir != null) {
       initSessionDirFromPath(explicitSessionDir);
+      if (FileSystemEntity.typeSync(sessionDirPath, followLinks: false) != FileSystemEntityType.notFound) {
+        try {
+          ensureSessionDir();
+        } on FileSystemException catch (e) {
+          stderr.writeln('ERROR: ${e.message}');
+          exit(1);
+        }
+      }
     } else {
-      final resolved = resolveSessionDir();
+      final String? resolved;
+      try {
+        resolved = resolveSessionDir();
+      } on FileSystemException catch (e) {
+        stderr.writeln('ERROR: ${e.message}');
+        exit(1);
+      }
       if (!sessionSoftFail.contains(command) && resolved == null) {
         stderr.writeln(
           'ERROR: No .fdb/ session found. Run from the project root or pass --session-dir <path>.',

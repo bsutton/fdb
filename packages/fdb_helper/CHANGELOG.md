@@ -1,3 +1,7 @@
+## 1.15.1
+
+- No functional changes. Version matches the fdb 1.15.1 security release.
+
 ## 1.15.0
 
 - No functional changes. Version matches fdb 1.15.0.

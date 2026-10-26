@@ -31,9 +31,9 @@ Future<AttachResult> attachApp(
     onProgress('attach: preparing session');
 
     initLaunchSession(project: project, sessionDir: input.sessionDir);
+    ensureSessionDir();
     await replacePreviousSession(progressPrefix: 'attach', onProgress: onProgress);
 
-    ensureSessionDir();
     ensureGitignored(project);
     File(deviceFile).writeAsStringSync(device);
     writeProjectPath(project);

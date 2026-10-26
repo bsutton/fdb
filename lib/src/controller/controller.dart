@@ -278,7 +278,7 @@ class _FdbController implements ControllerContext {
     _logCollector = LogCollectorManager(logWarning: _appendLogLine);
     _token = _generateToken();
     File(controllerPidFile).writeAsStringSync(pid.toString());
-    File(controllerTokenFile).writeAsStringSync(_token);
+    writeControllerToken(_token);
 
     _server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     File(controllerPortFile).writeAsStringSync(_server.port.toString());

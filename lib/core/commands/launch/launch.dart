@@ -55,10 +55,10 @@ Future<LaunchResult> launchApp(
     onProgress('launch: preparing session');
 
     initLaunchSession(project: project, sessionDir: input.sessionDir);
+    ensureSessionDir();
     await replacePreviousSession(stopApp: true, onProgress: onProgress);
 
     // Create .fdb/ session directory and persist device ID.
-    ensureSessionDir();
     ensureGitignored(project);
     File(deviceFile).writeAsStringSync(device);
     writeProjectPath(project);
@@ -324,6 +324,7 @@ Future<void> replacePreviousSession({
   String progressPrefix = 'launch',
   void Function(String) onProgress = _noop,
 }) async {
+  ensureSessionDir();
   if (await isPreviousSessionStale()) {
     final controllerPid = readControllerPid();
     if (controllerPid != null) {

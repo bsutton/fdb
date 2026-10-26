@@ -1,3 +1,8 @@
+## 1.15.1
+
+### Security
+- Keep the `.fdb` session directory private (`0700`) and the controller token private (`0600`) on POSIX systems. Reject symlinked session and token paths to avoid redirecting the credential write. Existing sessions are secured when rediscovered.
+
 ## 1.15.0
 
 ### New commands
